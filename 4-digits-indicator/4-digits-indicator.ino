@@ -1,40 +1,11 @@
-#include "letters.h"
-#include "numbers.h"
+#include "charMasks.h"
 
 int pins[] = {9, 13, 4, 6, 7, 10, 3, 5};
 int pinDigits[] = {8, 11, 12, 2};
 
-char_2_mask_map char_2_mask_maps[] =
-{
-	{'A', CHAR_A},
-	{'C', CHAR_C},
-	{'O', CHAR_O},
-	{'E', CHAR_E},
-	{'r', CHAR_r},
-	{'H', CHAR_H},
-	{'h', CHAR_h},
-	{'d', CHAR_d},
-	{'b', CHAR_b},
-	{'.', CHAR_DOT},
-	{' ', CHAR_SPACE},
-
-	{'0', ZERO},
-	{'1', ONE},
-	{'2', TWO},
-	{'3', THREE},
-	{'4', FOUR},
-	{'5', FIVE},
-	{'6', SIX},
-	{'7', SEVEN},
-	{'8', EIGHT},
-	{'9', NINE}
-};
-
 int const DELAY = 1;
-
 int loopsCounter = 0;
-
-int numberToDisplay = 0;
+int numberToDisplay = 9999;
 
 String textToDisplay = String(numberToDisplay);
 
@@ -93,30 +64,40 @@ byte getMask(const char c)
 	return getMask(c, false);
 }
 
+void displayText(String text)
+{
+	int digitNumber = 0;
+
+	for (byte i = 0; i < text.length(); i++)
+	{
+		if (i < text.length() -1)
+		{
+			if (text.charAt(i) != '.' && text.charAt(i + 1) == '.')
+			{
+				showMask(digitNumber, getMask(text[i], true));
+				continue;
+			}
+		}
+		showMask(digitNumber, getMask(text[i]));
+		digitNumber++;
+	}
+}
+
 void loop() 
 {
 	loopsCounter++;
 	if ((loopsCounter % (100 / (textToDisplay.length() + 2))) == 0)
 	{
+		if (numberToDisplay > 9999)
+		{
+			numberToDisplay = 0;
+		}
+
 		numberToDisplay++;
 		textToDisplay = String(numberToDisplay);
 		loopsCounter = 0;
 	}
 	
-	int digitNumber = 0;
-
-	for (byte i = 0; i < textToDisplay.length(); i++)
-	{
-		if (i < textToDisplay.length() -1)
-		{
-			if (textToDisplay.charAt(i) != '.' && textToDisplay.charAt(i + 1) == '.')
-			{
-				showMask(digitNumber, getMask(textToDisplay[i], true));
-				continue;
-			}
-		}
-		showMask(digitNumber, getMask(textToDisplay[i]));
-		digitNumber++;
-	}
+	displayText(textToDisplay);
 }
 

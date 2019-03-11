@@ -108,9 +108,6 @@
     <ClInclude Include="letters.h" />
     <ClInclude Include="__vm\.4-digits-indicator.vsarduino.h" />
   </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="LedSegment.cpp" />
-  </ItemGroup>
   <PropertyGroup>
     <DebuggerFlavor>VisualMicroDebugger</DebuggerFlavor>
   </PropertyGroup>

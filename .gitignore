@@ -6,3 +6,5 @@
 /4-digits-indicator/Debug
 /4-digits-indicator/_ReSharper.Caches/ReSharperPlatformVs15183_1fd1fc7a.4-digits-indicator.00
 /4-digits-indicator/__vm
+*.user
+*.filters

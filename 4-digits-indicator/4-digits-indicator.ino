@@ -4,8 +4,13 @@
 
 #define DHTPIN 2     // Digital pin connected to the DHT sensor 
 #define DHTTYPE    DHT11
+
+
 DHT_Unified dht(DHTPIN, DHTTYPE);
-uint32_t delayMS;
+
+#pragma region
+const byte SEGMENTS_COUNT = 8;
+const byte NUMBER_OF_DIGITS = 4;
 
 byte const CHAR_A = B11101110;
 byte const CHAR_C = B10011100;
@@ -17,8 +22,8 @@ byte const CHAR_h = B00101110;
 byte const CHAR_b = B00111110;
 byte const CHAR_d = B01111010;
 byte const CHAR_DOT = B00000001;
-
 byte const CHAR_SPACE = B00000000;
+byte const CHAR_MINUS = B00000010;
 
 byte const ZERO = B11111100;
 byte const ONE = B01100000;
@@ -39,108 +44,67 @@ struct char_2_mask_map
 
 char_2_mask_map char_2_mask_maps[] =
 {
-  {'A', CHAR_A},
-  {'C', CHAR_C},
-  {'O', CHAR_O},
-  {'E', CHAR_E},
-  {'r', CHAR_r},
-  {'H', CHAR_H},
-  {'h', CHAR_h},
-  {'d', CHAR_d},
-  {'b', CHAR_b},
-  {'.', CHAR_DOT},
-  {' ', CHAR_SPACE},
+	{'A', CHAR_A},
+	{'C', CHAR_C},
+	{'O', CHAR_O},
+	{'E', CHAR_E},
+	{'r', CHAR_r},
+	{'H', CHAR_H},
+	{'h', CHAR_h},
+	{'d', CHAR_d},
+	{'b', CHAR_b},
+	{'.', CHAR_DOT},
+	{' ', CHAR_SPACE},
+	{'-', CHAR_MINUS},
 
-  {'0', ZERO},
-  {'1', ONE},
-  {'2', TWO},
-  {'3', THREE},
-  {'4', FOUR},
-  {'5', FIVE},
-  {'6', SIX},
-  {'7', SEVEN},
-  {'8', EIGHT},
-  {'9', NINE}
+	{'0', ZERO},
+	{'1', ONE},
+	{'2', TWO},
+	{'3', THREE},
+	{'4', FOUR},
+	{'5', FIVE},
+	{'6', SIX},
+	{'7', SEVEN},
+	{'8', EIGHT},
+	{'9', NINE}
 };
+#pragma endregion LED definitions
 
-int pins[] = { 9, 13, 4, 6, 7, 10, 3, 5 };
-int pinDigits[] = { 8, 11, 12, A4 };
+int pins[] = {9, 13, 4, 6, 7, 10, 3, 5};
+int pinDigits[] = {8, 11, 12, A4};
 
-int const DELAY = 1;
-int loopsCounter = 0;
-int numberToDisplay = 9999;
-
-String textToDisplay = String(numberToDisplay);
-
-String temperature = " ";
-String humidity = " ";
+String temperature = "--.-0";
+String humidity = "--.-0";
 
 enum DisplayMode { Temperature, Humidity };
+
 DisplayMode displayMode = Temperature;
 
-unsigned long previousMillis = 0;
+unsigned long previousSwitchingDisplayModeMillis = 0;
+const unsigned long SWITCHING_DISPLAY_MODE_DELAY = 10000;
+
+unsigned long previousMeasureMillis = 0;
+const unsigned long MEASURE_DELAY = 5000;
 
 void showMask(byte mask)
 {
-	for (int i = 0; i < 8; i++)
-	{
-		digitalWrite(pins[i], !bitRead(mask, 7 - i));
-	}
-}
-
-void setup()
-{
-	Serial.begin(9600);
-	// Initialize device.
-	dht.begin();
-	Serial.println(F("DHTxx Unified Sensor Example"));
-	// Print temperature sensor details.
-	sensor_t sensor;
-	dht.temperature().getSensor(&sensor);
-	Serial.println(F("------------------------------------"));
-	Serial.println(F("Temperature Sensor"));
-	Serial.print(F("Sensor Type: ")); Serial.println(sensor.name);
-	Serial.print(F("Driver Ver:  ")); Serial.println(sensor.version);
-	Serial.print(F("Unique ID:   ")); Serial.println(sensor.sensor_id);
-	Serial.print(F("Max Value:   ")); Serial.print(sensor.max_value); Serial.println(F("°C"));
-	Serial.print(F("Min Value:   ")); Serial.print(sensor.min_value); Serial.println(F("°C"));
-	Serial.print(F("Resolution:  ")); Serial.print(sensor.resolution); Serial.println(F("°C"));
-	Serial.println(F("------------------------------------"));
-	// Print humidity sensor details.
-	dht.humidity().getSensor(&sensor);
-	Serial.println(F("Humidity Sensor"));
-	Serial.print(F("Sensor Type: ")); Serial.println(sensor.name);
-	Serial.print(F("Driver Ver:  ")); Serial.println(sensor.version);
-	Serial.print(F("Unique ID:   ")); Serial.println(sensor.sensor_id);
-	Serial.print(F("Max Value:   ")); Serial.print(sensor.max_value); Serial.println(F("%"));
-	Serial.print(F("Min Value:   ")); Serial.print(sensor.min_value); Serial.println(F("%"));
-	Serial.print(F("Resolution:  ")); Serial.print(sensor.resolution); Serial.println(F("%"));
-	Serial.println(F("------------------------------------"));
-	// Set delay between sensor readings based on sensor details.
-	delayMS = sensor.min_delay / 1000;
+	const byte segmentsCount = 7;
 
 	for (int i = 0; i < 8; i++)
 	{
-		pinMode(pins[i], OUTPUT);
-		digitalWrite(pinDigits[i], LOW);
-	}
-
-	for (int i = 0; i < 4; i++)
-	{
-		pinMode(pinDigits[i], OUTPUT);
-		digitalWrite(pinDigits[i], LOW);
+		digitalWrite(pins[i], !bitRead(mask, segmentsCount - i));
 	}
 }
 
-void showMask(byte digitNumber, byte mask)
+void showMask(byte digitNumber, const byte mask)
 {
 	showMask(mask);
 	digitalWrite(pinDigits[digitNumber], HIGH);
-	delay(DELAY);
+	delay(1);
 	digitalWrite(pinDigits[digitNumber], LOW);
 }
 
-byte getMask(const char c, boolean withDot)
+byte getMask(const char c, const boolean withDot)
 {
 	for (auto i = 0; i < sizeof(char_2_mask_maps) / sizeof(*char_2_mask_maps); i++)
 	{
@@ -183,41 +147,64 @@ void displayText(String text)
 	}
 }
 
-String replsceLastZerro(const String s, const char c)
+String replaceLastZero(const String s, const char c)
 {
-	if (s.length() < 6)
+	String result = s;
+	const unsigned max_chars_number = 6;
+	if (s.length() <= max_chars_number && s.endsWith("0"))
 	{
-		if (s.endsWith("0"))
-		{
-			s.setCharAt(s.length() - 1, c);
-		}
+		result.setCharAt(s.length() - 1, c);
 	}
 
-	return s;
+	return result;
+}
+
+void setup()
+{
+	Serial.begin(9600);
+
+	// Initialize device.
+	dht.begin();
+
+	for (int i = 0; i < SEGMENTS_COUNT; i++)
+	{
+		pinMode(pins[i], OUTPUT);
+		digitalWrite(pinDigits[i], LOW);
+	}
+
+	for (int i = 0; i < NUMBER_OF_DIGITS; i++)
+	{
+		pinMode(pinDigits[i], OUTPUT);
+		digitalWrite(pinDigits[i], LOW);
+	}
 }
 
 void loop()
 {
-	loopsCounter++;
-	if ((loopsCounter % 250) == 0)
+	unsigned long currentMilis = millis();
+
+	if (currentMilis - previousMeasureMillis > MEASURE_DELAY)
 	{
 		// Get temperature event and print its value.
 		sensors_event_t event;
 		dht.temperature().getEvent(&event);
-		if (isnan(event.temperature)) {
-			//Serial.println(F("Error reading temperature!"));
-			displayText("Err.C");
+		if (isnan(event.temperature))
+		{
+			Serial.println(F("Error reading temperature!"));
+			temperature = "Err.C";
 		}
-		else {
+		else
+		{
 			Serial.print(F("Temperature: "));
 			Serial.print(event.temperature);
 			Serial.print("°C");
 			temperature = String(event.temperature);
 		}
 		dht.humidity().getEvent(&event);
-		if (isnan(event.relative_humidity)) {
-			//Serial.println(F("Error reading humidity!"));
-			displayText("Err.H");
+		if (isnan(event.relative_humidity))
+		{
+			Serial.println(F("Error reading humidity!"));
+			humidity = "Err.H";
 		}
 		else
 		{
@@ -227,25 +214,23 @@ void loop()
 			humidity = String(event.relative_humidity);
 		}
 
-		loopsCounter = 0;
+		previousMeasureMillis += MEASURE_DELAY;
 	}
 
-	unsigned long currentMillis = millis();
-	if (currentMillis - previousMillis >= 10000)
+	if (millis() - previousSwitchingDisplayModeMillis >= SWITCHING_DISPLAY_MODE_DELAY)
 	{
 		displayMode = (displayMode == Temperature ? Humidity : Temperature);
 
-		previousMillis = currentMillis;
+		previousSwitchingDisplayModeMillis += SWITCHING_DISPLAY_MODE_DELAY;
 	}
 
 	switch (displayMode)
 	{
 	case Temperature:
-		displayText(replsceLastZerro(temperature, 'C'));
+		displayText(replaceLastZero(temperature, 'C'));
 		break;
 	case Humidity:
-		displayText(replsceLastZerro(humidity, 'H'));
-	default:;
+		displayText(replaceLastZero(humidity, 'H'));
+	default: ;
 	}
 }
-
